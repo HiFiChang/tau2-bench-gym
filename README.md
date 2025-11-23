@@ -1,4 +1,4 @@
-# τ²-bench Gym(Gymnasium) 环境适配 (τ²-bench Gym Environment Adaptation)
+# τ²-bench Gym(Gymnasium) 环境适配
 
 ## 概述
 
@@ -7,7 +7,7 @@
 - **`src/tau2/environment/gym_env.py`**: Gym 环境封装类
 - **`run_telecom_tasks.py`**: 示例运行脚本
 
-## 设计思路 (Design Philosophy)
+## 设计思路
 
 ### 核心理念
 
@@ -35,7 +35,7 @@
 | Reward | τ² 评估器计算的分数 | 回合结束时计算（0-1 分） |
 | Episode | 一个完整的任务对话 | 从问候开始到问题解决或达到步数上限 |
 | Done | 终止条件 | Agent/User 停止、达到最大步数或错误数 |
-## 实现逻辑 (Implementation Logic)
+## 实现逻辑
 
 ### 1. 环境初始化 (`Tau2GymEnv.__init__`)
 
@@ -103,7 +103,7 @@ Agent 动作 → User 思考（可能使用工具）→ Environment 响应 → U
 #### 消息历史管理
 Orchestrator 维护完整的对话历史（`trajectory`），策略可以访问这个历史来生成下一个动作。
 
-## 使用方法 (Usage Guide)
+## 使用方法
 
 首先**需要按照τ²-bench的安装说明完成环境配置**。请参看[Installation](#installation)。
 
@@ -148,7 +148,7 @@ python run_telecom_tasks.py --num-tasks 5 --num-trials 1
    - **步骤级轨迹**: 每步的 observation-action-reward
    - **评估结果**: 最终奖励和奖励分解
 
-## 其他细节（Other Details）
+## 其他细节
 
 ### 消息类型
 
