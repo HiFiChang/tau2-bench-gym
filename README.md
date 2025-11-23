@@ -1,3 +1,187 @@
+# Gym 环境适配说明 (Gym Environment Adaptation)
+
+## 概述 (Overview)
+
+本仓库在原始 τ²-bench 基础上新增了 **Gym 兼容的强化学习环境**，使得该基准测试框架可以直接用于强化学习研究和训练。核心实现包括：
+
+- **`src/tau2/environment/gym_env.py`**: Gym 环境封装类
+- **`run_telecom_tasks.py`**: 示例运行脚本
+
+## 设计思路 (Design Philosophy)
+
+### 核心理念
+
+τ²-bench 原本是一个用于评估对话型客服代理的基准测试框架，其核心是 **Orchestrator** 系统，它协调三个角色之间的交互：
+- **Agent（代理）**: 客服代理，需要根据策略帮助用户
+- **User（用户）**: 通过 LLM 驱动的用户模拟器，向代理提出问题
+- **Environment（环境）**: 执行工具调用并返回结果
+
+为了将这个框架适配为标准的 Gym 环境，需要明确**从谁的视角**来定义强化学习问题。
+
+### Agent 为学习主体
+
+**Agent作为强化学习的主体**，因为目标是训练更好的assistant，Agent 需要学习如何与用户交互、使用工具解决问题。因此，在 Gym 环境中：
+- **Agent = RL Agent（学习主体）**
+- **User + Environment = Gym Environment（环境）**
+
+### Gym 接口映射
+
+基于上述设计理念，我们将 τ²-bench 映射到标准的 Gym 接口：
+
+| Gym 概念 | τ²-bench 对应 | 说明 |
+|---------|--------------|------|
+| **Action（动作）** | `AssistantMessage` | Agent 发送的消息（文本回复或工具调用） |
+| **Observation（观察）** | `Message` | Agent 接收到的消息（用户消息或工具返回） |
+| **Reward（奖励）** | τ² 评估器计算的分数 | 回合结束时计算（0-1 分） |
+| **Episode（回合）** | 一个完整的任务对话 | 从问候开始到问题解决或达到步数上限 |
+| **Done（结束）** | 终止条件 | Agent/User 停止、达到最大步数或错误数 |
+
+## 实现逻辑 (Implementation Logic)
+
+### 1. 环境初始化 (`Tau2GymEnv.__init__`)
+
+初始化环境，加载指定领域的任务。
+
+### 2. 回合重置 (`reset()`)
+
+每次调用 `reset()` 开始新回合：
+
+1. **选择任务**: 从任务列表中选择一个（循环或指定）
+2. **创建组件**: 
+   - 实例化 Environment（领域环境，提供工具）
+   - 实例化 UserSimulator（LLM 驱动的用户）
+   - 创建 DummyAgent（占位符，实际动作由外部策略提供）
+3. **初始化 Orchestrator**: 创建协调器管理三方交互
+4. **执行初始交互**: 
+   - Agent 发送问候："Hi! How can I help you today?"
+   - User 回复描述问题
+5. **返回初始观察**: 返回用户的首条消息作为 observation
+
+### 3. 执行步骤 (`step(action)`)
+
+这是 Gym 环境的核心逻辑，每次调用代表 Agent 执行一个动作：
+
+**输入**: 
+- `action`: 一个 `AssistantMessage` 对象（包含文本或工具调用）
+
+**处理流程**:
+1. **验证动作**: 检查动作格式是否合法
+2. **注入 Orchestrator**: 将动作设置为 Orchestrator 的当前消息
+3. **确定流向**: 
+   - 如果是工具调用 → `to_role = Environment`
+   - 如果是文本消息 → `to_role = User`
+4. **内部循环执行**: 持续调用 `orchestrator.step()`，直到控制权返回 Agent
+   - User 接收消息 → 生成回复 → 发给 Agent
+   - Environment 执行工具 → 返回结果 → 发给 Agent
+   - **可能涉及多轮内部交互（ User 使用工具）**
+5. **检查终止条件**:
+   - Agent/User 发送停止信号
+   - 达到最大步数
+   - 工具错误次数过多
+6. **计算奖励**: 只在回合结束时计算最终奖励（使用 τ² 评估器）
+
+**输出**:
+- `observation`: 下一条发给 Agent 的消息
+- `reward`: 回合中为 0.0，结束时为最终分数（0-1）
+- `terminated`: 自然结束（Agent/User 停止）
+- `truncated`: 达到限制（步数/错误数）
+- `info`: 包含步骤计数、终止原因、奖励分解等元数据
+
+### 4. 关键设计点
+
+#### 内部步骤隐藏
+一次 `gym.step(action)` 可能对应多次内部交互：
+```
+Agent 动作 → User 思考（可能使用工具）→ Environment 响应 → User 生成回复 → 返回 Agent
+```
+所有这些中间步骤对 RL Agent **不可见**，只看到最终返回的观察。
+
+#### 奖励延迟
+强化学习中的 sparse reward：
+- 回合进行中：`reward = 0.0`
+- 回合结束时：`reward = evaluate_simulation(...)` （0-1 分）
+
+#### 消息历史管理
+Orchestrator 维护完整的对话历史（`trajectory`），策略可以访问这个历史来生成下一个动作。
+
+## 使用方法 (Usage Guide)
+
+我们提供了 `run_telecom_tasks.py` 作为完整示例：
+
+**运行所有 telecom 任务**:
+```bash
+python run_telecom_tasks.py --domain telecom --num-trials 1
+```
+
+**运行特定任务**:
+```bash
+python run_telecom_tasks.py --task-ids task_001 task_002 --num-trials 3
+```
+
+**指定 LLM 模型**:
+```bash
+python run_telecom_tasks.py \
+  --agent-llm gpt-4o \
+  --user-llm gpt-4.1 \
+  --num-trials 2
+```
+
+**运行前k个任务**:
+```bash
+python run_telecom_tasks.py --num-tasks 5 --num-trials 1
+```
+
+### 输出说明
+
+脚本会生成两类输出：
+
+1. **汇总结果** (`results/telecom_run_TIMESTAMP.json`):
+   - 平均奖励
+   - 成功率
+   - 每个任务的详细结果
+
+2. **轨迹文件** (`results/telecom_trajectories/TASK_ID_trial_TIMESTAMP.json`):
+   - **Agent 视角**: 完整的 messages、tools、system_prompt（可用于复现）
+   - **User 视角**: User Simulator 的内部状态
+   - **完整对话**: 第三方观察视角的对话记录
+   - **步骤级轨迹**: 每步的 observation-action-reward
+   - **评估结果**: 最终奖励和奖励分解
+
+## 其他细节（Other Details）
+
+### 消息类型
+
+- **`SystemMessage`**: 系统提示（策略、指令）
+- **`UserMessage`**: 用户发送的消息
+- **`AssistantMessage`**: Agent 发送的消息（文本或工具调用）
+- **`ToolMessage`**: 工具执行结果
+- **`MultiToolMessage`**: 多个工具结果的集合
+
+### 终止原因
+
+- **`AGENT_STOP`**: Agent 主动结束对话
+- **`USER_STOP`**: User 主动结束对话  
+- **`MAX_STEPS`**: 达到最大步数
+- **`TOO_MANY_ERRORS`**: 工具错误次数过多
+
+### 评估指标
+
+调用 τ² 原有评估器。
+
+## 与原仓库的关系
+
+本适配**完全兼容**原始 τ²-bench 框架：
+- 复用所有领域定义、任务、评估器
+- 保持原有的 Orchestrator 逻辑
+- **仅进行了增量修改**，在外层添加 Gym 接口包装
+- 不影响原有的 CLI 和评估流程
+
+---
+
+**以下是原仓库的 README**
+
+---
+
 # $\tau^2$-Bench: Evaluating Conversational Agents in a Dual-Control Environment
 
 [![python](https://img.shields.io/badge/Python-3.10%2B-blue.svg?style=flat&logo=python&logoColor=white)](https://www.python.org)
