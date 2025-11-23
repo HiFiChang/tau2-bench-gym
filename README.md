@@ -1,8 +1,8 @@
-# Gym 环境适配说明 (Gym Environment Adaptation)
+# τ²-bench Gym(Gymnasium) 环境适配 (τ²-bench Gym Environment Adaptation)
 
-## 概述 (Overview)
+## 概述
 
-本仓库在原始 τ²-bench 基础上新增了 **Gym 兼容的强化学习环境**，使得该基准测试框架可以直接用于强化学习研究和训练。核心实现包括：
+本repo在原始 τ²-bench 基础上新增了 **Gym 兼容的强化学习环境**，使得该基准测试框架可以直接用于强化学习研究和训练。核心实现包括：
 
 - **`src/tau2/environment/gym_env.py`**: Gym 环境封装类
 - **`run_telecom_tasks.py`**: 示例运行脚本
@@ -30,12 +30,11 @@
 
 | Gym 概念 | τ²-bench 对应 | 说明 |
 |---------|--------------|------|
-| **Action（动作）** | `AssistantMessage` | Agent 发送的消息（文本回复或工具调用） |
-| **Observation（观察）** | `Message` | Agent 接收到的消息（用户消息或工具返回） |
-| **Reward（奖励）** | τ² 评估器计算的分数 | 回合结束时计算（0-1 分） |
-| **Episode（回合）** | 一个完整的任务对话 | 从问候开始到问题解决或达到步数上限 |
-| **Done（结束）** | 终止条件 | Agent/User 停止、达到最大步数或错误数 |
-
+| Action | `AssistantMessage` | Agent 发送的消息（文本回复或工具调用） |
+| Observation | `Message` | Agent 接收到的消息（用户消息或工具返回） |
+| Reward | τ² 评估器计算的分数 | 回合结束时计算（0-1 分） |
+| Episode | 一个完整的任务对话 | 从问候开始到问题解决或达到步数上限 |
+| Done | 终止条件 | Agent/User 停止、达到最大步数或错误数 |
 ## 实现逻辑 (Implementation Logic)
 
 ### 1. 环境初始化 (`Tau2GymEnv.__init__`)
@@ -106,7 +105,9 @@ Orchestrator 维护完整的对话历史（`trajectory`），策略可以访问�
 
 ## 使用方法 (Usage Guide)
 
-我们提供了 `run_telecom_tasks.py` 作为完整示例：
+首先**需要按照τ²-bench的安装说明完成环境配置**。请参看[Installation](#installation)。
+
+我们提供了 `run_telecom_tasks.py` 作为脚本：
 
 **运行所有 telecom 任务**:
 ```bash
