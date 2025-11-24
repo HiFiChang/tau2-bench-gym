@@ -146,6 +146,9 @@ class Tau2GymEnv(gym.Env):
             
             def get_init_state(self, message_history=None):
                 return {"messages": message_history if message_history else []}
+            
+            def stop(self):
+                pass
         
         dummy_agent = DummyAgent()
         
