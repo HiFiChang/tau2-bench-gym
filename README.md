@@ -116,7 +116,7 @@ python run_telecom_tasks.py --domain telecom --num-trials 1
 
 **运行特定任务**:
 ```bash
-python run_telecom_tasks.py --task-ids task_001 task_002 --num-trials 3
+python run_telecom_tasks.py --task-ids '[mobile_data_issue]data_mode_off|data_usage_exceeded[PERSONA:None]'
 ```
 
 **指定 LLM 模型**:
