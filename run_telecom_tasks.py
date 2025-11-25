@@ -37,10 +37,18 @@ def save_trajectory_to_file(task_id, trial, messages, trajectory, reward, reward
                 agent_messages.append(msg.model_dump())
             else:
                 agent_messages.append({"role": getattr(msg, 'role', 'unknown'), "content": str(msg)})
+        
+        # 序列化工具
+        agent_tools = []
+        for tool in agent_context["tools"]:
+            if hasattr(tool, 'model_dump'):
+                agent_tools.append(tool.model_dump(mode='json'))
+            else:
+                agent_tools.append(str(tool))
                 
         agent_trace = {
             "system_prompt": agent_context["system_prompt"],
-            "tools": [tool.model_dump() if hasattr(tool, 'model_dump') else str(tool) for tool in agent_context["tools"]],
+            "tools": agent_tools,
             "messages": agent_messages
         }
     
@@ -65,9 +73,17 @@ def save_trajectory_to_file(task_id, trial, messages, trajectory, reward, reward
         # 获取 tools
         user_tools = env.environment.get_user_tools()
         
+        # 序列化工具
+        serialized_user_tools = []
+        for tool in (user_tools or []):
+            if hasattr(tool, 'model_dump'):
+                serialized_user_tools.append(tool.model_dump(mode='json'))
+            else:
+                serialized_user_tools.append(str(tool))
+        
         user_trace = {
             "system_prompt": user_system_prompt,
-            "tools": [tool.model_dump() if hasattr(tool, 'model_dump') else str(tool) for tool in (user_tools or [])],
+            "tools": serialized_user_tools,
             "messages": user_messages
         }
     
