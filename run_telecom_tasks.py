@@ -32,7 +32,11 @@ def save_trajectory_to_file(task_id, trial, messages, trajectory, reward, reward
     agent_trace = None
     if agent_context:
         agent_messages = []
-        for msg in agent_context["messages"]:
+        for i, msg in enumerate(agent_context["messages"]):
+            # 跳过第一条消息（"Hi! How can I help you today?"）
+            if hasattr(msg, 'content') and msg.content == "Hi! How can I help you today?":
+                continue
+                
             if hasattr(msg, 'model_dump'):
                 agent_messages.append(msg.model_dump())
             else:
@@ -57,13 +61,25 @@ def save_trajectory_to_file(task_id, trial, messages, trajectory, reward, reward
     if env and env.orchestrator and env.orchestrator.user_state:
         user_state = env.orchestrator.user_state
         
-        # 获取 user messages
+        # 获取 user messages，并反转 role（因为从 User Simulator 视角，它是 assistant）
         user_messages = []
         for msg in user_state.messages:
             if hasattr(msg, 'model_dump'):
-                user_messages.append(msg.model_dump())
+                msg_dict = msg.model_dump()
+                # 反转 role：assistant ↔ user
+                if msg_dict.get('role') == 'assistant':
+                    msg_dict['role'] = 'user'
+                elif msg_dict.get('role') == 'user':
+                    msg_dict['role'] = 'assistant'
+                user_messages.append(msg_dict)
             else:
-                user_messages.append({"role": getattr(msg, 'role', 'unknown'), "content": str(msg)})
+                role = getattr(msg, 'role', 'unknown')
+                # 反转 role
+                if role == 'assistant':
+                    role = 'user'
+                elif role == 'user':
+                    role = 'assistant'
+                user_messages.append({"role": role, "content": str(msg)})
         
         # 获取 system prompt
         user_system_prompt = ""
