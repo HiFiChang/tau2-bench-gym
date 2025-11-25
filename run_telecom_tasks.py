@@ -34,8 +34,8 @@ def save_trajectory_to_file(task_id, trial, messages, trajectory, reward, reward
         agent_messages = []
         for i, msg in enumerate(agent_context["messages"]):
             # 跳过第一条消息（"Hi! How can I help you today?"）
-            if hasattr(msg, 'content') and msg.content == "Hi! How can I help you today?":
-                continue
+            # if hasattr(msg, 'content') and msg.content == "Hi! How can I help you today?":
+            #     continue
                 
             if hasattr(msg, 'model_dump'):
                 agent_messages.append(msg.model_dump())

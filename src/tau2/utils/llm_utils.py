@@ -1,5 +1,8 @@
 import json
+import os
 import re
+from datetime import datetime
+from pathlib import Path
 from typing import Any, Optional
 
 import litellm
@@ -70,6 +73,37 @@ ALLOW_SONNET_THINKING = False
 
 if not ALLOW_SONNET_THINKING:
     logger.warning("Sonnet thinking is disabled")
+
+
+# Global counter for LLM calls
+_llm_call_counter = 0
+_llm_log_dir = None
+
+
+def _get_llm_log_dir() -> Path:
+    """Get or create the LLM call log directory."""
+    global _llm_log_dir
+    if _llm_log_dir is None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        _llm_log_dir = Path("results/llm_call_logs") / f"run_{timestamp}"
+        _llm_log_dir.mkdir(parents=True, exist_ok=True)
+    return _llm_log_dir
+
+
+def _save_llm_call_info(call_info: dict) -> None:
+    """Save LLM call information to a JSON file."""
+    global _llm_call_counter
+    _llm_call_counter += 1
+    
+    log_dir = _get_llm_log_dir()
+    filename = f"call_{_llm_call_counter:04d}.json"
+    filepath = log_dir / filename
+    
+    try:
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(call_info, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        logger.error(f"Failed to save LLM call info: {e}")
 
 
 def _parse_ft_model_name(model: str) -> str:
@@ -205,6 +239,17 @@ def generate(
     tools = [tool.openai_schema for tool in tools] if tools else None
     if tools and tool_choice is None:
         tool_choice = "auto"
+    
+    # Intercept and save LLM call information
+    call_info = {
+        "timestamp": datetime.now().isoformat(),
+        "model": model,
+        "messages": litellm_messages,
+        "tools": tools,
+        "tool_choice": tool_choice,
+        "kwargs": {k: v for k, v in kwargs.items() if k not in ['api_key', 'api_base']},
+    }
+    
     try:
         response = completion(
             model=model,
@@ -214,8 +259,25 @@ def generate(
             **kwargs,
         )
     except Exception as e:
+        call_info["error"] = str(e)
+        _save_llm_call_info(call_info)
         logger.error(e)
         raise e
+    
+    # Save response information
+    call_info["response"] = {
+        "content": response.choices[0].message.content,
+        "tool_calls": [
+            {
+                "id": tc.id,
+                "name": tc.function.name,
+                "arguments": tc.function.arguments,
+            }
+            for tc in (response.choices[0].message.tool_calls or [])
+        ] if response.choices[0].message.tool_calls else None,
+        "finish_reason": response.choices[0].finish_reason,
+    }
+    _save_llm_call_info(call_info)
     cost = get_response_cost(response)
     usage = get_response_usage(response)
     response = response.choices[0]
